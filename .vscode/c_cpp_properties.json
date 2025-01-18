@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/opt/ros/jazzy/include/hardware_interface",
+                "/opt/ros/jazzy/include/rclcpp",
+                "/opt/ros/jazzy/include/rcl",
+                "/opt/ros/jazzy/include/rclcpp/rclcpp",
+                "/opt/ros/jazzy/include/rcutils"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c99",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "linux-gcc-arm64",
+            "browse": {
+                "path": [
+                    "/opt/ros/jazzy/include",
+                    "${workspaceFolder}/**"
+                ]
+            }
+        }
+    ],
+    "version": 4
+}

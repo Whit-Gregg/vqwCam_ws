@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../../opt/ros/jazzy"
+		}
+	],
+	"settings": {
+		"ros.distro": "jazzy"
+	}
+}
