@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(cam_pan_tilt_hardware_interface)
+project(vqw_servo_driver_component)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -8,19 +8,18 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_ros REQUIRED)
-##find_package(position_controllers REQUIRED)
-find_package(hardware_interface REQUIRED)
-find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(backward_ros REQUIRED)
-
-pluginlib_export_plugin_description_file(hardware_interface cam_pan_tilt_hardware_interface.xml)
+find_package(rclcpp_components REQUIRED)
+find_package(std_msgs REQUIRED)
 
 add_library(${PROJECT_NAME} 
-    src/cam_pan_tilt_hardware_interface.cpp
-)
-add_library(cam_pan_tilt_hardware_interface::cam_pan_tilt_hardware_interface ALIAS cam_pan_tilt_hardware_interface)
+    src/vqw_servo_driver_component.cpp
+    src/i2c_controller.cpp
+    src/PWMServoDriver.cpp
+    )
+add_library(vqw_servo_driver_component::vqw_servo_driver_component ALIAS vqw_servo_driver_component)
 
 target_compile_features(${PROJECT_NAME} PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
@@ -31,20 +30,21 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 ament_target_dependencies(
   ${PROJECT_NAME}
   "rclcpp"
-  "pluginlib"
-  "hardware_interface"
-  ##"position_controllers"
+  "rclcpp_components"
+  "rclcpp_lifecycle"
+  "backward_ros"
+  "std_msgs"
+)
+
+rclcpp_components_register_node(
+  ${PROJECT_NAME}
+    PLUGIN "vqw_servo_driver_component::VqwServoDriverComponent"
+    EXECUTABLE vqw_servo_driver_component_exe
 )
 
 # Causes the visibility macros to use dllexport rather than dllimport,
 # which is appropriate when building the dll but not consuming it.
-target_compile_definitions(${PROJECT_NAME} PRIVATE "CAM_PAN_TILT_HARDWARE_INTERFACE_BUILDING_LIBRARY")
-
-# Install the plugin description xml file
-install(FILES
-  cam_pan_tilt_hardware_interface.xml
-  DESTINATION share/${PROJECT_NAME}
-)
+target_compile_definitions(${PROJECT_NAME} PRIVATE "VQW_SERVO_DRIVER_COMPONENT_BUILDING_LIBRARY")
 
 install(
   DIRECTORY include/

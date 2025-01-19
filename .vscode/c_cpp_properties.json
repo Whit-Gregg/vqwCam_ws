@@ -8,7 +8,12 @@
                 "/opt/ros/jazzy/include/rclcpp",
                 "/opt/ros/jazzy/include/rcl",
                 "/opt/ros/jazzy/include/rclcpp/rclcpp",
-                "/opt/ros/jazzy/include/rcutils"
+                "/opt/ros/jazzy/include/rcutils",
+                "${workspaceFolder}/src/cam_pan_tilt_hardware_interface/include",
+                "${workspaceFolder}/src/vqw_servo_driver_component/include",
+                "/opt/ros/jazzy/include/rclcpp_components",
+                "/opt/ros/jazzy/include/rcl_interfaces",
+                "/opt/ros/jazzy/include/std_msgs"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
