@@ -23,11 +23,12 @@
 #ifndef _PWMServoDriver_H
 #define _PWMServoDriver_H
 
-#include <stdint.h>
+#include <cam_pan_tilt_hardware_interface/i2c_controller.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <vqw_servo_driver_component/i2c_controller.hpp>
+#include <stdint.h>
 
-namespace vqw_servo_driver_component
+
+namespace cam_pan_tilt_hardware_interface
 {
 
 // REGISTER ADDRESSES
@@ -65,24 +66,22 @@ namespace vqw_servo_driver_component
 #define MODE2_OCH     0x08 /**< Outputs change on ACK vs STOP */
 #define MODE2_INVRT   0x10 /**< Output logic state inverted */
 
-#define PCA9685_I2C_ADDRESS  0x40     /**< Default PCA9685 I2C Slave Address */
-#define FREQUENCY_OSCILLATOR 25000000 /**< Int. osc. frequency in datasheet */
+#define PCA9685_I2C_ADDRESS 0x40 /**< Default PCA9685 I2C Slave Address */
+// #define FREQUENCY_OSCILLATOR 25000000 /**< Int. osc. frequency in datasheet */
+#define FREQUENCY_OSCILLATOR 26800000 /**< Int. osc. frequency as tested with oscilloscope */
 
 #define PCA9685_PRESCALE_MIN 3   /**< minimum prescale value */
 #define PCA9685_PRESCALE_MAX 255 /**< maximum prescale value */
 
-// Depending on your servo make, the pulse width min and max may vary, you 
+// Depending on your servo make, the pulse width min and max may vary, you
 // want these to be as small/large as possible without hitting the hard stop
 // for max range. You'll have to tweak them as necessary to match the servos you
 // have!
-#define SERVOMIN  150 // This is the 'minimum' pulse length count (out of 4096)
-#define SERVOMAX  600 // This is the 'maximum' pulse length count (out of 4096)
-#define USMIN  600 // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
-#define USMAX  2400 // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
-#define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
-
-
-
+#define SERVOMIN   150        // This is the 'minimum' pulse length count (out of 4096)
+#define SERVOMAX   600        // This is the 'maximum' pulse length count (out of 4096)
+#define USMIN      600        // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
+#define USMAX      2400       // This is the rounded 'maximum' microsecond length based on the maximum pulse of 600
+#define SERVO_FREQ 50         // Analog servos run at ~50 Hz updates
 
     /*!
      *  @brief  Class that stores state and functions for interacting with PCA9685 PWM chip
@@ -91,9 +90,10 @@ namespace vqw_servo_driver_component
     {
       public:
         PWMServoDriver();
-        PWMServoDriver(const uint8_t addr);
-        PWMServoDriver(const uint8_t addr, I2CController::SharedPtr i2c_ctl);
+        PWMServoDriver(const std::string i2c_device_name, const uint8_t i2c_address);
+        PWMServoDriver(I2CController::SharedPtr i2c_ctl);
         bool     begin();
+        void     close();
         void     reset();
         void     sleep();
         void     wakeup();
@@ -102,9 +102,10 @@ namespace vqw_servo_driver_component
         void     setOutputMode(bool totempole);
         uint16_t getPWM(uint8_t num, bool off = false);
         uint8_t  setPWM(uint8_t num, uint16_t on, uint16_t off);
+        uint8_t  setPWM(uint8_t num, float pulse_width_ms);
         void     setPin(uint8_t num, uint16_t val, bool invert = false);
         uint8_t  readPrescale(void);
-        void     writeMicroseconds(uint8_t num, uint16_t Microseconds);
+        // void     writeMicroseconds(uint8_t num, double Microseconds);
 
         void     setOscillatorFrequency(uint32_t freq);
         uint32_t getOscillatorFrequency(void);
@@ -112,22 +113,20 @@ namespace vqw_servo_driver_component
         using SharedPtr = std::shared_ptr<PWMServoDriver>;
 
       private:
-        uint8_t       _i2caddr = PCA9685_I2C_ADDRESS;
+        uint8_t                  _i2caddr = PCA9685_I2C_ADDRESS;
         I2CController::SharedPtr _i2c_ctl;
-        uint8_t       prescale;
-        uint32_t      _oscillator_freq = 50;
-        void delay(uint32_t delay_ms){std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));}
-        void write8(uint8_t reg, uint8_t data);
-        void writeN(uint8_t reg, uint8_t * data, int len);
-        uint8_t read8(uint8_t reg);
-        void readN(uint8_t reg, uint8_t * data, int len);
-
-
-        // Adafruit_I2CDevice *i2c_dev = NULL;       ///< Pointer to I2C bus interface
-        //  uint8_t  read8(uint8_t addr);
-        //  void     write8(uint8_t addr, uint8_t d);
+        uint8_t                  prescale;
+        uint32_t                 _oscillator_freq = 0;
+        float                    pwm_period_ms    = 1000.0f / SERVO_FREQ;
+        void                     delay(uint32_t delay_ms) { std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms)); }
+        void                     write8(uint8_t reg, uint8_t data);
+        void                     writeN(uint8_t reg, uint8_t *data, int len);
+        uint8_t                  read8(uint8_t reg);
+        void                     readN(uint8_t reg, uint8_t *data, int len);
+        int                      prescale_value  = -1;
+        long                     count_of_setPWM = 0;
 
     };       // class PWMServoDriver
 
-}       // namespace vqw_servo_driver_component
+}       // namespace cam_pan_tilt_hardware_interface
 #endif

@@ -1,4 +1,4 @@
-#include "vqw_servo_driver_component/i2c_controller.hpp"
+#include "cam_pan_tilt_hardware_interface/i2c_controller.hpp"
 #include <fcntl.h>
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
@@ -31,7 +31,7 @@ uint8_t command[] = {
 */
 
 
-namespace vqw_servo_driver_component
+namespace cam_pan_tilt_hardware_interface
 {
 
 I2CController::~I2CController() { close_port(); }
@@ -44,7 +44,7 @@ int I2CController::open_port(const std::string &_dev_name, uint8_t slave__addres
     if (port_handle < 0)
         {
             status = Status::NOT_OPENED;
-            RCLCPP_ERROR(rclcpp::get_logger("vqw_servo_driver_component"), "I2CController::open_port() Failed. dev_name=%s errno=%d  %s", dev_name.c_str(),
+            RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "I2CController::open_port() Failed. dev_name=%s errno=%d  %s", dev_name.c_str(),
                          errno, strerror(errno));
             return -1;
         }
@@ -57,7 +57,7 @@ int I2CController::write_reg(const uint8_t _reg, const uint8_t *_data, size_t _l
 {
     if (!isOpen())
         {
-            RCLCPP_ERROR(rclcpp::get_logger("vqw_servo_driver_component"), "I2CController::write_reg() Port is not opened");
+            RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "I2CController::write_reg() Port is not opened");
             return -1;
         }
     int     result;
@@ -70,7 +70,7 @@ int I2CController::write_reg(const uint8_t _reg, const uint8_t *_data, size_t _l
     result = write(port_handle, buffer, _len + 1);
     status = Status::IDLE;
     if (result < 0) { 
-        RCLCPP_ERROR(rclcpp::get_logger("vqw_servo_driver_component"), "I2CController::write_reg() write() ERROR. errno=%d  %s", errno, strerror(errno));
+        RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "I2CController::write_reg() write() ERROR. errno=%d  %s", errno, strerror(errno));
         //....
          }
     return result;
@@ -80,7 +80,7 @@ int I2CController::read_reg(const uint8_t _reg, uint8_t *_data, size_t _len)
 {
     if (!isOpen())
         {
-            RCLCPP_ERROR(rclcpp::get_logger("vqw_servo_driver_component"), "I2CController::read_reg() Port is not opened");
+            RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "I2CController::read_reg() Port is not opened");
             return -1;
         }
     uint8_t buffer_send[1] {_reg};
@@ -107,7 +107,7 @@ int I2CController::read_reg(const uint8_t _reg, uint8_t *_data, size_t _len)
     int result = ioctl(port_handle, I2C_RDWR, &msg_set);
     if (result < 0)
         {
-            RCLCPP_ERROR(rclcpp::get_logger("vqw_servo_driver_component"), "I2CController::read_reg() ioctl(..) Failed. errno=%d  %s", errno, strerror(errno));
+            RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "I2CController::read_reg() ioctl(..) Failed. errno=%d  %s", errno, strerror(errno));
         }
     status = Status::IDLE;
     return result;
@@ -126,14 +126,14 @@ int I2CController::close_port()
 int I2CController::wait_for_being_idle()
 {
     if (status != Status::BUSY) { return 1; }
-    RCLCPP_INFO(rclcpp::get_logger("vqw_servo_driver_component"), "I2CController::wait_for_being_idle() status == BUSY");
+    RCLCPP_INFO(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "I2CController::wait_for_being_idle() status == BUSY");
     int count = 0;
     while ((status == Status::BUSY) && (count++ < 1000)) { 
         std::this_thread::sleep_for(std::chrono::microseconds(10));
         //....
          }
     if (status == Status::BUSY) { 
-        RCLCPP_ERROR(rclcpp::get_logger("vqw_servo_driver_component"), "I2CController::wait_for_being_idle() Failed. status == BUSY");
+        RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "I2CController::wait_for_being_idle() Failed. status == BUSY");
         return -1;
     }
     return 1;
@@ -145,7 +145,7 @@ int I2CController::set_slave_address(const std::uint8_t _slave_address)
     rc = ioctl(port_handle, I2C_SLAVE, _slave_address);
     if (rc < 0)
         {
-            RCLCPP_ERROR(rclcpp::get_logger("vqw_servo_driver_component"), "I2CController::set_slave_address() Failed. errno=%d  %s", errno,
+            RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "I2CController::set_slave_address() Failed. errno=%d  %s", errno,
                          strerror(errno));
             return -1;
         }
@@ -154,4 +154,4 @@ int I2CController::set_slave_address(const std::uint8_t _slave_address)
 }
 
 
-} // namespace vqw_servo_driver_component
+} // namespace cam_pan_tilt_hardware_interface

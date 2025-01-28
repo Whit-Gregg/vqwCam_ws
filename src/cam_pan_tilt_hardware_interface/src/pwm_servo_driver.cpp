@@ -27,61 +27,45 @@
  *  BSD license, all text above must be included in any redistribution
  */
 
-#include "vqw_servo_driver_component/PWMServoDriver.h"
+#include "cam_pan_tilt_hardware_interface/pwm_servo_driver.hpp"
+
 #include <rclcpp/rclcpp.hpp>
 #include <string.h>
 
-
 // #define ENABLE_DEBUG_OUTPUT
 
-namespace vqw_servo_driver_component
+namespace cam_pan_tilt_hardware_interface
 {
 
     /*!
      *  @brief  Instantiates a new PCA9685 PWM driver chip with the I2C address on a
      * TwoWire interface
-     */
-    PWMServoDriver::PWMServoDriver() : _i2caddr(PCA9685_I2C_ADDRESS) { _i2c_ctl = std::make_shared<I2CController>(); }
-
-    /*!
-     *  @brief  Instantiates a new PCA9685 PWM driver chip with the I2C address on a
-     * TwoWire interface
      *  @param  addr The 7-bit I2C address to locate this chip, default is 0x40
      */
-    PWMServoDriver::PWMServoDriver(const uint8_t addr) : _i2caddr(addr) { _i2c_ctl = std::make_shared<I2CController>(); }
+    PWMServoDriver::PWMServoDriver(const std::string dev_name, const uint8_t addr) { _i2c_ctl = std::make_shared<I2CController>(dev_name, addr); }
 
     /*!
-     *  @brief  Instantiates a new PCA9685 PWM driver chip with the I2C address on a I2CController interface
-     *  @param  addr The 7-bit I2C address to locate this chip, default is 0x40
-     *  @param  i2c  A reference to a 'I2CController' object that we'll use to communicate
-     *  with
+     *  @brief  Instantiates a new PCA9685 PWM driver chip with the I2CController to use for communication
+     *  @param  i2c  A reference to a 'I2CController' object that we'll use to communicate with
      */
-    PWMServoDriver::PWMServoDriver(const uint8_t addr, I2CController::SharedPtr i2c) : _i2caddr(addr), _i2c_ctl(i2c)
+    PWMServoDriver::PWMServoDriver(I2CController::SharedPtr i2c) : _i2c_ctl(i2c)
     {
         //....
     }
 
     /*!
      *  @brief  Setups the I2C interface and hardware
-     *  @param  prescale
-     *          Sets External Clock (Optional)
      *  @return true if successful, otherwise false
      */
     bool PWMServoDriver::begin()
     {
-        // if (i2c_dev)
-        //   delete i2c_dev;
-        // i2c_dev = new Adafruit_I2CDevice(_i2caddr, _i2c);
-        // if (!i2c_dev->begin())
-        //   return false;
-        const char *dev_name = "/dev/i2c-1";
-
         if (!_i2c_ctl->isOpen())
             {
-                int rc = _i2c_ctl->open_port(dev_name, PCA9685_I2C_ADDRESS);
+                int rc = _i2c_ctl->open_port();
                 if (rc < 0)
                     {
-                        RCLCPP_ERROR(rclcpp::get_logger("vqw_servo_driver_component"), "Failed to open i2c device: %s   errno=%d  %s", dev_name, errno, strerror(errno));
+                        RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "Failed to open i2c device: %s   errno=%d  %s",
+                                     _i2c_ctl->get_device_name().c_str(), errno, strerror(errno));
                         return false;
                     }
             }
@@ -104,12 +88,20 @@ namespace vqw_servo_driver_component
          * affects the calculations for the PWM update frequency.
          * Failure to correctly set the int.osc value will cause unexpected PWM results
          */
-        setOscillatorFrequency(FREQUENCY_OSCILLATOR);
+        if (_oscillator_freq == 0) { setOscillatorFrequency(FREQUENCY_OSCILLATOR); }
         setPWMFreq(SERVO_FREQ);       // Analog servos run at ~50 Hz updates
+        setOutputMode(true);          // totem pole!
 
         return true;
     }
 
+    void PWMServoDriver::close()
+    {
+        if (_i2c_ctl) { 
+            reset();
+            _i2c_ctl->close_port();
+             }
+    }
 
     /*!
      *  @brief  Sends a reset command to the PCA9685 chip over I2C
@@ -161,11 +153,6 @@ namespace vqw_servo_driver_component
         delay(5);
         // clear the SLEEP bit to start
         write8(PCA9685_MODE1, (newmode & ~MODE1_SLEEP) | MODE1_RESTART | MODE1_AI);
-
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print("Mode now 0x");
-        Serial.println(read8(PCA9685_MODE1), HEX);
-#endif
     }
 
     /*!
@@ -174,23 +161,19 @@ namespace vqw_servo_driver_component
      */
     void PWMServoDriver::setPWMFreq(float freq)
     {
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print("Attempting to set freq ");
-        Serial.println(freq);
-#endif
         // Range output modulation frequency is dependant on oscillator
         if (freq < 1) freq = 1;
         if (freq > 3500) freq = 3500;       // Datasheet limit is 3052=50MHz/(4*4096)
+
+        pwm_period_ms = 1000.0f / freq;
 
         float prescaleval = ((_oscillator_freq / (freq * 4096.0)) + 0.5) - 1;
         if (prescaleval < PCA9685_PRESCALE_MIN) prescaleval = PCA9685_PRESCALE_MIN;
         if (prescaleval > PCA9685_PRESCALE_MAX) prescaleval = PCA9685_PRESCALE_MAX;
         uint8_t prescale = (uint8_t)prescaleval;
+        prescale_value   = prescale;
 
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print("Final pre-scale: ");
-        Serial.println(prescale);
-#endif
+        RCLCPP_INFO(rclcpp::get_logger("PWMServoDriver"), "setPWMFreq(%.1f) pre-scale to: %d ", freq, prescale_value);
 
         uint8_t oldmode = read8(PCA9685_MODE1);
         uint8_t newmode = (oldmode & ~MODE1_RESTART) | MODE1_SLEEP;       // sleep
@@ -200,11 +183,6 @@ namespace vqw_servo_driver_component
         delay(5);
         // This sets the MODE1 register to turn on auto increment, and Totempole(push/pull)
         write8(PCA9685_MODE1, oldmode | MODE1_RESTART | MODE1_AI | MODE2_OUTDRV);
-
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print("Mode now 0x");
-        Serial.println(read8(PCA9685_MODE1), HEX);
-#endif
     }
 
     /*!
@@ -221,19 +199,17 @@ namespace vqw_servo_driver_component
         if (totempole) { newmode = oldmode | MODE2_OUTDRV; }
         else { newmode = oldmode & ~MODE2_OUTDRV; }
         write8(PCA9685_MODE2, newmode);
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print("Setting output mode: ");
-        Serial.print(totempole ? "totempole" : "open drain");
-        Serial.print(" by setting MODE2 to ");
-        Serial.println(newmode);
-#endif
     }
 
     /*!
      *  @brief  Reads set Prescale from PCA9685
      *  @return prescale value
      */
-    uint8_t PWMServoDriver::readPrescale(void) { return read8(PCA9685_PRESCALE); }
+    uint8_t PWMServoDriver::readPrescale(void)
+    {
+        if (prescale_value < 0) prescale_value = read8(PCA9685_PRESCALE);
+        return prescale_value;
+    }
 
     /*!
      *  @brief  Gets the PWM output of one of the PCA9685 pins
@@ -246,8 +222,33 @@ namespace vqw_servo_driver_component
         uint8_t buffer[2] = {uint8_t(PCA9685_LED0_ON_L + 4 * num), 0};
         if (off) buffer[0] += 2;
         uint8_t reg = (uint8_t)(PCA9685_LED0_ON_L + 4 * num);
-        _i2c_ctl->write_reg(reg, buffer, 2);
+        _i2c_ctl->read_reg(reg, buffer, 2);
         return uint16_t(buffer[0]) | (uint16_t(buffer[1]) << 8);
+    }
+
+    /*!
+     *  @brief  Sets the PWM output of one of the PCA9685 pins
+     *  @param  num One of the PWM output pins, from 0 to 15
+     *  @param  pulse_width_ms The number of milliseconds to turn the PWM output ON
+     *  @return 0 if successful, otherwise 1
+     */
+
+    uint8_t PWMServoDriver::setPWM(uint8_t num, float pulse_width_ms)
+    {
+        if (std::isnan(pulse_width_ms)) { return 1; }
+        // Clamp value between 0 and 4095 inclusive.
+        int val = (uint16_t)(pulse_width_ms * 4096 / pwm_period_ms);
+        // uint16_t val = (uint16_t)(pulse_width_ms * 4096 / 20);
+        if (val > 4095) val = 4095;
+        if (val < 0) val = 0;
+
+        if ((count_of_setPWM < 10)||(count_of_setPWM % 1000) == 0)
+            {
+                RCLCPP_INFO(rclcpp::get_logger("PWMServoDriver"), "setPWM(%2d, %.3f)  val=%d", num, pulse_width_ms, val);
+            }
+        count_of_setPWM++;
+        setPin(num, val);
+        return 0;
     }
 
     /*!
@@ -259,21 +260,14 @@ namespace vqw_servo_driver_component
      */
     uint8_t PWMServoDriver::setPWM(uint8_t num, uint16_t on, uint16_t off)
     {
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print("Setting PWM ");
-        Serial.print(num);
-        Serial.print(": ");
-        Serial.print(on);
-        Serial.print("->");
-        Serial.println(off);
-#endif
-
         uint8_t reg = PCA9685_LED0_ON_L + (4 * num);
         uint8_t buffer[5];
         buffer[0] = on;
         buffer[1] = on >> 8;
         buffer[2] = off;
         buffer[3] = off >> 8;
+
+        //RCLCPP_INFO(rclcpp::get_logger("PWMServoDriver"), "setPWM(%2d, %4d, %4d)", num, on, off);
 
         if (_i2c_ctl->write_reg(reg, buffer, 4)) { return 0; }
         return 1;
@@ -327,48 +321,23 @@ namespace vqw_servo_driver_component
      *  @param  num One of the PWM output pins, from 0 to 15
      *  @param  Microseconds The number of Microseconds to turn the PWM output ON
      */
-    void PWMServoDriver::writeMicroseconds(uint8_t num, uint16_t Microseconds)
-    {
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print("Setting PWM Via Microseconds on output");
-        Serial.print(num);
-        Serial.print(": ");
-        Serial.print(Microseconds);
-        Serial.println("->");
-#endif
+    // void PWMServoDriver::writeMicroseconds(uint8_t num, double Microseconds)
+    // {
+    //     double pulse = Microseconds;
+    //     double pulselength;
+    //     pulselength = 1000000;       // 1,000,000 us per second
 
-        double pulse = Microseconds;
-        double pulselength;
-        pulselength = 1000000;       // 1,000,000 us per second
+    //     // Read prescale
+    //     uint16_t prescale = readPrescale();
 
-        // Read prescale
-        uint16_t prescale = readPrescale();
+    //     // Calculate the pulse for PWM based on Equation 1 from the datasheet section 7.3.5
+    //     prescale += 1;
+    //     pulselength *= prescale;
+    //     pulselength /= _oscillator_freq;
+    //     pulse /= pulselength;
 
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print(prescale);
-        Serial.println(" PCA9685 chip prescale");
-#endif
-
-        // Calculate the pulse for PWM based on Equation 1 from the datasheet section
-        // 7.3.5
-        prescale += 1;
-        pulselength *= prescale;
-        pulselength /= _oscillator_freq;
-
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print(pulselength);
-        Serial.println(" us per bit");
-#endif
-
-        pulse /= pulselength;
-
-#ifdef ENABLE_DEBUG_OUTPUT
-        Serial.print(pulse);
-        Serial.println(" pulse for PWM");
-#endif
-
-        setPWM(num, 0, pulse);
-    }
+    //     setPWM(num, 0, pulse);
+    // }
 
     /*!
      *  @brief  Getter for the internally tracked oscillator used for freq
@@ -381,9 +350,13 @@ namespace vqw_servo_driver_component
      *  @brief Setter for the internally tracked oscillator used for freq calculations
      *  @param freq The frequency the PCA9685 should use for frequency calculations
      */
-    void PWMServoDriver::setOscillatorFrequency(uint32_t freq) { _oscillator_freq = freq; }
+    void PWMServoDriver::setOscillatorFrequency(uint32_t freq)
+    {
+        _oscillator_freq = freq;
+        RCLCPP_INFO(rclcpp::get_logger("PWMServoDriver"), "setOscillatorFrequency(%d)", freq);
+    }
 
-    /******************* Low level I2C interface */
+    /******************* Low level I2C interface ****************************/
     uint8_t PWMServoDriver::read8(uint8_t reg)
     {
         uint8_t buffer[2] = {0, 0};
@@ -399,10 +372,6 @@ namespace vqw_servo_driver_component
 
     void PWMServoDriver::readN(uint8_t reg, uint8_t *data, int len) { _i2c_ctl->read_reg(reg, data, len); }
 
-    void PWMServoDriver::writeN(uint8_t reg, uint8_t *data, int len)
-    {
-        //.......
-        _i2c_ctl->write_reg(reg, data, len);
-    }
+    void PWMServoDriver::writeN(uint8_t reg, uint8_t *data, int len) { _i2c_ctl->write_reg(reg, data, len); }
 
-}       // namespace vqw_servo_driver_component
+}       // namespace cam_pan_tilt_hardware_interface

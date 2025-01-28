@@ -8,7 +8,6 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_ros REQUIRED)
-##find_package(position_controllers REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -19,6 +18,8 @@ pluginlib_export_plugin_description_file(hardware_interface cam_pan_tilt_hardwar
 
 add_library(${PROJECT_NAME} 
     src/cam_pan_tilt_hardware_interface.cpp
+    src/i2c_controller.cpp
+    src/pwm_servo_driver.cpp
 )
 add_library(cam_pan_tilt_hardware_interface::cam_pan_tilt_hardware_interface ALIAS cam_pan_tilt_hardware_interface)
 
@@ -57,6 +58,35 @@ install(
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
 )
+
+
+
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+add_executable(Test_PWMServoDriver 
+    src/Test_PWMServoDriver.cpp
+    src/i2c_controller.cpp
+    src/pwm_servo_driver.cpp
+    )
+
+target_compile_features(Test_PWMServoDriver PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+
+target_include_directories(Test_PWMServoDriver PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
+
+ament_target_dependencies(Test_PWMServoDriver
+  "rclcpp"
+  "backward_ros"
+)
+
+install(
+  TARGETS Test_PWMServoDriver
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+##~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
