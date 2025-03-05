@@ -15,12 +15,19 @@ namespace cam_pan_tilt_hardware_interface
         servo.cmd_if   = nullptr;
         servo.state_if = nullptr;
         servos[name]   = servo;
+        RCLCPP_INFO(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "CamPanTiltHardwareInterface[%s]::AddServo(\"%s\", %d)", my_name.c_str(), name.c_str(), channel);
         return GetServo(name);
     }
     CamPanTiltHardwareInterface::ServoInfo *CamPanTiltHardwareInterface::GetServo(const std::string &name)
     {
         auto it = servos.find(name);
-        if (it == servos.end()) { return nullptr; }
+        if (it == servos.end())
+            {
+                RCLCPP_INFO(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "CamPanTiltHardwareInterface[%s]::GetServo(\"%s\")  NOT FOUND!", my_name.c_str(), name.c_str());
+                return nullptr;
+            }
+        RCLCPP_INFO(rclcpp::get_logger("cam_pan_tilt_hardware_interface"), "CamPanTiltHardwareInterface[%s]::GetServo(\"%s\") Found, channel = %d",
+                    my_name.c_str(), name.c_str(), it->second.channel);
         return &it->second;
     }
 
@@ -93,14 +100,14 @@ namespace cam_pan_tilt_hardware_interface
         int                                                             ndx              = 0;
         for (auto &state_interface : state_interfaces)
             {
-                std::string name   = state_interface->get_name();
+                std::string name   = state_interface->get_prefix_name();
                 ServoInfo  *pServo = GetServo(name);
-                if (pServo == nullptr) { pServo = AddServo(name, -1); }
+                //if (pServo == nullptr) { pServo = AddServo(name, -1); }
                 if (pServo != nullptr)
                     {
                         for (auto &joint_state : joint_states_)
                             {
-                                if (joint_state->get_name() == name)
+                                if (joint_state->get_prefix_name() == name)
                                     {
                                         bool ok = joint_state->set_value(0.0);
                                         if (!ok) { ok = true; }
@@ -114,6 +121,11 @@ namespace cam_pan_tilt_hardware_interface
                                              "CamPanTiltHardwareInterface::on_export_state_interfaces() name \"%s\" not found in joint_states!", name.c_str());
                             }
                     }
+                else
+                    {
+                        RCLCPP_ERROR(rclcpp::get_logger("cam_pan_tilt_hardware_interface"),
+                                     "CamPanTiltHardwareInterface::on_export_state_interfaces() joint_name \"%s\" not found in servos!", name.c_str());
+                    }
                 ndx++;
             }
         return state_interfaces;
@@ -126,9 +138,9 @@ namespace cam_pan_tilt_hardware_interface
             {
                 bool ok = command_interface->set_value(0.0);
                 if (!ok) { ok = true; }
-                std::string name   = command_interface->get_name();
+                std::string name   = command_interface->get_prefix_name();
                 ServoInfo  *pServo = GetServo(name);
-                if (pServo == nullptr) { pServo = AddServo(name, -1); }
+                //if (pServo == nullptr) { pServo = AddServo(name, -1); }
                 if (pServo != nullptr) { pServo->cmd_if = command_interface; }
             }
         return command_interfaces;
@@ -178,8 +190,8 @@ namespace cam_pan_tilt_hardware_interface
                     {
                         float pluse_width_ms = ((value + M_PI / 2) / M_PI) + 1.0;       // convert radians to pulse width in milliseconds
                         RCLCPP_INFO(rclcpp::get_logger("CamPanTiltHardwareInterface"),
-                                    "CamPanTiltHardwareInterface[%s]::write() name=%s, channel=%d, value=%.3f   pluse_width_ms=%.4f", 
-                                    my_name.c_str(), name.c_str(), servo.channel, value, pluse_width_ms);
+                                    "CamPanTiltHardwareInterface[%s]::write() name=%s, channel=%d, value=%.3f   pluse_width_ms=%.4f", my_name.c_str(),
+                                    name.c_str(), servo.channel, value, pluse_width_ms);
 
                         if (pwm_servo_driver) { pwm_servo_driver->setPWM(servo.channel, pluse_width_ms); }
                         servo.position = value;

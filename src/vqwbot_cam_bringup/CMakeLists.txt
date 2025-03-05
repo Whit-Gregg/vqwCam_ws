@@ -9,7 +9,9 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(controller_manager REQUIRED)
 find_package(cam_pan_tilt_hardware_interface REQUIRED)
+find_package(camera_ros REQUIRED)
 
+find_package(image_proc REQUIRED)
 
 # Install directories
 install(DIRECTORY
