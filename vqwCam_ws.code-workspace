@@ -8,6 +8,9 @@
 		},
 		{
 			"path": ".."
+		},
+		{
+			"path": "../../../etc/chrony"
 		}
 	],
 	"settings": {
@@ -98,6 +101,10 @@
 			"*.ipp": "cpp"
 		},
 		"python.autoComplete.extraPaths": [
+			"/home/whit/camera_ws/install/libcamera/lib/python3.12/site-packages",
+			"/opt/ros/jazzy/lib/python3.12/site-packages"
+		],
+		"python.analysis.extraPaths": [
 			"/home/whit/camera_ws/install/libcamera/lib/python3.12/site-packages",
 			"/opt/ros/jazzy/lib/python3.12/site-packages"
 		]

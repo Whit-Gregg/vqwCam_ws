@@ -11,10 +11,6 @@
 
   <depend>launch</depend>
   <depend>launch_ros</depend>
-  <depend>xacro</depend>
-  <depend>cam_pan_tilt_hardware_interface</depend>
-  <depend>controller_manager</depend>
-
   <depend>image_proc</depend>
   <depend>camera_ros</depend>
 

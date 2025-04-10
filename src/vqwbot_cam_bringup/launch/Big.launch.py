@@ -15,140 +15,135 @@ from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 
-# # # # #
-# # # # #
-# # # # # camera calibration URL: file:///home/whit/.ros/camera_info/imx708__base_axi_pcie_120000_rp1_i2c_88000_imx708_1a_640x480.yaml
-# # # # #
-# # # # #
-
 def generate_launch_description():
     ld = LaunchDescription()
 
-    # # # # # camara_launch = IncludeLaunchDescription(PythonLaunchDescriptionSource(
-    # # # # #     [os.path.join(get_package_share_directory('camera_ros'), 'camera.launch.py')])
-    # # # # # )
-    # # # # # ld.add_action(camara_launch)
+    ##---- the camera image format ---
+    format_param_name = "format"
+    format_param_default = "XRGB8888"
+    format_param = LaunchConfiguration(
+        format_param_name,
+        default=format_param_default,
+    )
+    format_launch_arg = DeclareLaunchArgument(
+        format_param_name,
+        default_value=format_param_default,
+        description="pixel format"
+    )
+    ld.add_action(format_launch_arg)
+    
 
-    # parameters
-    ##---- the Left Camera device name or number
-    camera_L_param_name = "camera_L"
-    camera_L_param_default = str(0)
-    camera_L_param = LaunchConfiguration(
-        camera_L_param_name,
-        default=camera_L_param_default,
-    )
-    camera_L_launch_arg = DeclareLaunchArgument(
-        camera_L_param_name,
-        default_value=camera_L_param_default,
-        description="camera_L number or device name"
-    )
-    ld.add_action(camera_L_launch_arg)
 
-    
-    ##---- the Right Camera device name or number
-    camera_R_param_name = "camera_R"
-    camera_R_param_default = str(0)
-    camera_R_param = LaunchConfiguration(
-        camera_R_param_name,
-        default=camera_R_param_default,
-    )
-    camera_R_launch_arg = DeclareLaunchArgument(
-        camera_R_param_name,
-        default_value=camera_R_param_default,
-        description="camera_R number or device name"
-    )
-    ld.add_action(camera_R_launch_arg)
-
-    
-    
-    
     ##-----------------------------------------
     camera_L_composable_node = ComposableNode(
             package='camera_ros',
             plugin='camera::CameraNode',
             name='camera_L',
             parameters=[{
-                "camera": camera_L_param,
+                "camera": 0,
                 "width": 1040,  #640,
                 "height": 768,  #480,
-                "format": 'XRGB8888',
+                "format": format_param,
             }],
             extra_arguments=[{'use_intra_process_comms': True}],
+            ## output published to: /carera_L/image_raw
         )
+
     ##-----------------------------------------
     camera_R_composable_node = ComposableNode(
             package='camera_ros',
             plugin='camera::CameraNode',
             name='camera_R',
             parameters=[{
-                "camera": camera_R_param,
+                "camera": 1,
                 "width": 1040,  #640,
                 "height": 768,  #480,
-                "format": 'XRGB8888',
+                "format": format_param,
             }],
             extra_arguments=[{'use_intra_process_comms': True}],
+            ## output published to: /carera_L/image_raw
         )
     
-# /camera_L/camera_info
-# /camera_L/image_raw
-# /camera_L/image_raw/compressed    
-    
+    ##-----------------------------------------
     rectify_L_composable_node = ComposableNode(
             package='image_proc',
             plugin='image_proc::RectifyNode',
             name='rectify_L',
             remappings=[
                 ('image', '/carera_L/image_raw'),
-                #('image_rect', '/carera_L/image_rect')
+                ('image_rect', '/carera_L/image_rect')
             ],
             extra_arguments=[{'use_intra_process_comms': True}],
+        ## output to:  /carera_L/image_rect
         )
-
     
+    
+    ##-----------------------------------------
     rectify_R_composable_node = ComposableNode(
             package='image_proc',
             plugin='image_proc::RectifyNode',
             name='rectify_R',
             remappings=[
                 ('image', '/carera_R/image_raw'),
-                #('image_rect', '/carera_R/image_rect')
+                ('image_rect', '/carera_R/image_rect')
             ],
             extra_arguments=[{'use_intra_process_comms': True}],
+        ## output to:  /carera_L/image_rect
         )
+    
 
 
     # camera node
-    composable_nodes_L = [
+    composable_nodes_part_A = [
         camera_L_composable_node,
-        #rectify_L_composable_node,
+        #camera_R_composable_node,
+        rectify_L_composable_node,
+        rectify_R_composable_node,
     ]
 
-    composable_nodes_R = [
+    # camera node
+    composable_nodes_part_B = [
+        #camera_L_composable_node,
         camera_R_composable_node,
-        #rectify_R_composable_node,
+        # rectify_L_composable_node,
+        # rectify_R_composable_node,
     ]
 
     # composable nodes in single container
-    container = ComposableNodeContainer(
-        name='camera_container_L',
+    container_B = ComposableNodeContainer(
+        name='camera_Small_container',
         namespace='',
         package='rclcpp_components',
         executable='component_container',
-        composable_node_descriptions=composable_nodes_L,
+        composable_node_descriptions=composable_nodes_part_B,
+        arguments=["--ros-args", "--log-level", "INFO"],
     )
-    ld.add_action(container)
+    ld.add_action(container_B)
 
 
     # composable nodes in single container
-    container = ComposableNodeContainer(
-        name='camera_container_R',
+    container_A = ComposableNodeContainer(
+        name='camera_Big_container',
         namespace='',
         package='rclcpp_components',
         executable='component_container',
-        composable_node_descriptions=composable_nodes_R,
+        composable_node_descriptions=composable_nodes_part_A,
+        arguments=["--ros-args", "--log-level", "INFO"],
     )
-    ld.add_action(container)
+    ld.add_action(container_A)
+
+
+    stereo_image_proc_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(get_package_share_directory('stereo_image_proc'), 'launch', 'stereo_image_proc.launch.py')])
+        ,launch_arguments={  
+                           'approximate_sync': 'True',
+                           'avoid_point_cloud_padding': 'True',
+                           'left_namespace': 'camera_L',
+                           'right_namespace': 'camera_R',
+                           'launch_image_proc': 'True',
+                           'container': 'camera_Big_container',
+                           }.items()
+    )
+    ld.add_action(stereo_image_proc_launch)
 
     return ld
-
-

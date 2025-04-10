@@ -19,11 +19,7 @@ from launch_ros.descriptions import ComposableNode
 # # # # #
 # # # # # camera calibration URL: file:///home/whit/.ros/camera_info/xxxxxxx.yaml
 # # # # #
-# # # # # [camera_L]: camera calibration URL: file:///home/whit/.ros/camera_info/imx708__base_axi_pcie_120000_rp1_i2c_88000_imx708_1a_1040x768.yaml
-# # # # # [camera_R]: camera calibration URL: file:///home/whit/.ros/camera_info/imx708__base_axi_pcie_120000_rp1_i2c_80000_imx708_1a_1040x768.yaml
-# # # # # 
-# # # # # 
-# # # # # 
+# # # # #
 
 def generate_launch_description():
     ld = LaunchDescription()
@@ -31,7 +27,7 @@ def generate_launch_description():
     # parameters
     ##---- the camera device name or number
     camera_param_name = "camera"
-    camera_param_default = str(1)
+    camera_param_default = str(0)
     camera_param = LaunchConfiguration(
         camera_param_name,
         default=camera_param_default,
@@ -57,64 +53,76 @@ def generate_launch_description():
     )
     ld.add_action(format_launch_arg)
     
+    apriltag_config_path = PathJoinSubstitution([
+        FindPackageShare("vqwbot_cam_bringup"),
+        "params",
+        "apriltag_params.yaml"
+    ])
     
-    ### qos_overrides./parameter_events.publisher.reliability
+    
     ##-----------------------------------------
     camera_composable_node = ComposableNode(
             package='camera_ros',
             plugin='camera::CameraNode',
-            name='camera_R',
+            name='camera_L',
             parameters=[{
                 "camera": camera_param,
                 "width": 1040,  #640,
                 "height": 768,  #480,
                 "format": format_param,
-                'qos_overrides': {
-                    '/camera_R/image_raw': {
-                        'publisher': {
-                            'reliability': 'best_effort',
-                            'history': 'keep_last',
-                            'depth': 1,
-                        }
-                    }
-                },
             }],
             extra_arguments=[{'use_intra_process_comms': True}],
-            ## output published to: /carera_R/image_raw
+            ## output published to: /carera_L/image_raw
         )
     
     rectify_composable_node = ComposableNode(
             package='image_proc',
             plugin='image_proc::RectifyNode',
-            name='rectify_R',
+            name='rectify_L',
             remappings=[
-                ('image', '/carera_R/image_raw'),
-                ('image_rect', '/carera_R/image_rect')
+                ('image', '/carera_L/image_raw'),
+                ('image_rect', '/carera_L/image_rect')
             ],
             extra_arguments=[{'use_intra_process_comms': True}],
             parameters=[{
                 'qos_overrides': {
-                    '/camera_R/image_rect': {
+                    '/carera_L/image_rect': {
                         'publisher': {
                             'reliability': 'best_effort',
                             'history': 'keep_last',
-                            'depth': 1,
+                            'depth': 100,
                         }
                     }
                 },
             }],
+        ## output to:  /carera_L/image_rect
         )
+    
+    
+    apriltag_node = ComposableNode(
+            package='apriltag_ros',
+            plugin='apriltag::AprilTagNode',
+            name='apriltag',
+            remappings=[
+                ('image_rect', '/carera_L/image_rect'),
+            ],
+            parameters=apriltag_config_path,
+            extra_arguments=[{'use_intra_process_comms': True}],
+            ## output published to: /carera_L/image_raw
+        )
+    
 
 
     # camera node
     composable_nodes = [
         camera_composable_node,
-        ##rectify_composable_node,
+        rectify_composable_node,
+        apriltag_node,
     ]
 
     # composable nodes in single container
     container = ComposableNodeContainer(
-        name='camera_R_container',
+        name='camera_L_apriltag_container',
         namespace='',
         package='rclcpp_components',
         executable='component_container',
@@ -125,25 +133,3 @@ def generate_launch_description():
 
     return ld
 
-
-
-###=======================================================================
-# return LaunchDescription([
-
-#         launch_ros.actions.Node(
-#             package='image_publisher', executable='image_publisher_node', output='screen',
-#             arguments=[filename],
-#             parameters=[{
-#                 'qos_overrides': {
-#                     '/camera/image_raw': {
-#                         'publisher': {
-#                             'reliability': 'best_effort',
-#                             'history': 'keep_last',
-#                             'depth': 100,
-#                         }
-#                     }
-#                 },
-#             }],
-#             remappings=[('image_raw', '/camera/image_raw'),
-#                         ('camera_info', '/camera/camera_info')]),
-#     ])

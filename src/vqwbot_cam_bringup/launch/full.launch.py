@@ -7,11 +7,6 @@ from ament_index_python import get_package_share_directory
 def generate_launch_description():
     ld = LaunchDescription()
 
-    # servo_launch = IncludeLaunchDescription(PythonLaunchDescriptionSource(
-    #     [os.path.join(get_package_share_directory('vqwbot_cam_bringup'), 'launch', 'servo.launch.py')])
-    # )
-    #ld.add_action(servo_launch)
-
     camara_launch_L = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(get_package_share_directory('vqwbot_cam_bringup'), 'launch', 'camera_L.launch.py')])
         ,launch_arguments={ 
@@ -28,6 +23,23 @@ def generate_launch_description():
                            }.items()
     )
     ld.add_action(camara_launch_R)
+
+
+
+
+    stereo_image_proc_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([os.path.join(get_package_share_directory('stereo_image_proc'), 'launch', 'stereo_image_proc.launch.py')])
+        ,launch_arguments={  
+                           'approximate_sync': 'True',
+                           'avoid_point_cloud_padding': 'True',
+                           'left_namespace': 'camera_L',
+                           'right_namespace': 'camera_R',
+                           'launch_image_proc': 'True',
+                           }.items()
+    )
+    ld.add_action(camara_launch_R)
+
+
 
 
     return ld
