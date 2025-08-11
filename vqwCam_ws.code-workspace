@@ -10,7 +10,10 @@
 			"path": ".."
 		},
 		{
-			"path": "../../../etc/chrony"
+			"path": "../../../etc/netplan"
+		},
+		{
+			"path": "../../../lib/netplan"
 		}
 	],
 	"settings": {
